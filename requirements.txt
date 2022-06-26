@@ -1,0 +1,5 @@
+black==22.3.0
+fastapi==0.78.0
+pydantic==1.9.1
+sqlalchemy==1.4.39
+uvicorn==0.18.1
