@@ -1,3 +1,4 @@
+from enum import unique
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship
 from database import Base
@@ -64,7 +65,7 @@ class Stock(Base):
 class User(Base):
     __tablename__ = "user"
     id = Column(Integer, primary_key=True)
-    username = Column(String(256))
+    username = Column(String(256), unique=True)
     email = Column(String(256))
     full_name = Column(String(256))
     hashed_password = Column(String(256))

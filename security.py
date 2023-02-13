@@ -22,11 +22,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 
 fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+    "josh": {
+        "username": "josh",
+        "full_name": "Joshua Wharton",
+        "email": "joshua@vapexstores.co.uk",
+        "hashed_password": "$2b$12$Oe8WaP1s4wHuoZq/EkkUHO.mvlu1dS/naFCEo0VtGuTeAvK6rUMMS",
         "disabled": False,
     }
 }
@@ -49,13 +49,10 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-def authenticate_user(fake_db, username: str, password: str):
-    user = get_user(fake_db, username)
-    if not user:
-        return False
+def authenticate_user(user: schemas.UserInDB, password: str):
     if not verify_password(password, user.hashed_password):
         return False
-    return user
+    return True
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -89,9 +86,19 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-def get_current_active_user(
-    current_user: schemas.User = Depends(get_current_user),
-):
-    if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
+def get_current_active_user():
+    # def get_current_active_user(
+    #     current_user: schemas.User = Depends(get_current_user),
+    # ):
+    # if current_user.disabled:
+    #     raise HTTPException(status_code=400, detail="Inactive user")
+    # return current_user
+    return True
+
+
+def check_superuser(user: schemas.User):
+    if not user.username == "josh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You are unauthorised to create a new user.",
+        )

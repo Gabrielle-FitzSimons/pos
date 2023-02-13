@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from typing import List, Optional
 from fastapi import FastAPI, status, HTTPException, Depends, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
@@ -11,9 +12,11 @@ import schemas
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
+    check_superuser,
     create_access_token,
     fake_users_db,
     get_current_active_user,
+    get_password_hash,
 )
 
 # Create the database
@@ -21,6 +24,18 @@ Base.metadata.create_all(engine)
 
 # Initialize app
 app = FastAPI()
+
+# origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080", "*"]
+origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Helper function to get database session
 def get_session():
@@ -37,14 +52,30 @@ def root():
 
 
 @app.post("/token", response_model=schemas.Token)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session),
+):
+    # get the item item with the given id
+    user = (
+        session.query(models.User)
+        .filter(models.User.username == form_data.username)
+        .first()
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if not authenticate_user(user, form_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -52,13 +83,49 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# @app.post("/users/create")
-# def create_user()
+@app.post("/users", response_model=schemas.User)
+def create_user(
+    user: schemas.UserCreate,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    check_superuser(current_user)
+
+    password_hash = get_password_hash(user.password)
+
+    userdb = models.User(
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=False,
+        hashed_password=password_hash,
+    )
+
+    # add it to the session and commit it
+    session.add(userdb)
+    session.commit()
+    session.refresh(userdb)
+
+    # return the item object
+    return userdb
 
 
 @app.get("/users/me/", response_model=schemas.User)
 def read_users_me(current_user: schemas.User = Depends(get_current_active_user)):
     return current_user
+
+
+@app.get("/users", response_model=List[schemas.User])
+def read_user_list(
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    check_superuser(current_user)
+
+    # get all users
+    user_list = session.query(models.User).all()
+
+    return user_list
 
 
 @app.post("/item", response_model=schemas.Item, status_code=status.HTTP_201_CREATED)
