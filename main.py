@@ -356,66 +356,6 @@ def create_transaction(
     return read_transaction(transactiondb.id, session)
 
 
-@app.get("/transaction/custom", response_model=List[schemas.TransactionShow])
-def read_transaction_custom(
-    store_id: Optional[int] = None,
-    start_date: Optional[str] = Query(
-        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
-    ),
-    end_date: Optional[str] = Query(
-        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
-    ),
-    min_price: Optional[int] = None,
-    max_price: Optional[int] = None,
-    session: Session = Depends(get_session),
-    current_user: schemas.User = Depends(get_current_active_user),
-):
-    """
-    This is going to be one BIG BIG DIRTY method for dealing with all custom ranges.
-    Can filter through a range of query parameters
-    store_id:
-    start_date:     INCLUSIVE!
-    end_date:       EXCLUSIVE!
-    min_price
-    max_price
-    """
-    transaction_list = session.query(models.Transaction)
-    if min_price:
-        transaction_list = transaction_list.filter(
-            models.Transaction.price >= min_price
-        )
-    if max_price:
-        transaction_list = transaction_list.filter(
-            models.Transaction.price <= max_price
-        )
-    if start_date:
-        transaction_list = transaction_list.filter(
-            models.Transaction.datetime >= start_date
-        )
-    if end_date:
-        transaction_list = transaction_list.filter(
-            models.Transaction.datetime <= end_date
-        )
-    if store_id:
-        transaction_list = transaction_list.join(
-            models.Stock, models.Transaction.stocks
-        ).filter(models.Stock.store_id == store_id)
-        # (
-        #     session.query(models.Transaction)
-        #     .filter(models.Transaction.stocks[0].store_id == store_id)
-        #     .first()
-        # )
-
-    logger.info("hello")
-
-    # transaction_list = session.query(models.Transaction).all()
-    response = [
-        utils.prettify_transaction(transaction)
-        for transaction in transaction_list.all()
-    ]
-    return response
-
-
 @app.get("/transaction/{id}", response_model=schemas.TransactionShow)
 def read_transaction(
     id: int,
@@ -504,13 +444,51 @@ def delete_transaction(
 
 
 @app.get("/transaction", response_model=List[schemas.TransactionShow])
-def read_transaction_list(
+def read_transaction_custom(
+    store_id: Optional[int] = None,
+    start_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    end_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    min_price: Optional[int] = None,
+    max_price: Optional[int] = None,
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-    # get all transactions
-    transaction_list = session.query(models.Transaction).all()
+    """
+    This is going to be one BIG BIG DIRTY method for dealing with all custom ranges.
+    Can filter through a range of query parameters
+    store_id:
+    start_date:     INCLUSIVE!
+    end_date:       EXCLUSIVE!
+    min_price
+    max_price
+    """
+    transaction_list = session.query(models.Transaction)
+    if min_price:
+        transaction_list = transaction_list.filter(
+            models.Transaction.price >= min_price
+        )
+    if max_price:
+        transaction_list = transaction_list.filter(
+            models.Transaction.price <= max_price
+        )
+    if start_date:
+        transaction_list = transaction_list.filter(
+            models.Transaction.datetime >= start_date
+        )
+    if end_date:
+        transaction_list = transaction_list.filter(
+            models.Transaction.datetime <= end_date
+        )
+    if store_id:
+        transaction_list = transaction_list.join(
+            models.Stock, models.Transaction.stocks
+        ).filter(models.Stock.store_id == store_id)
     response = [
-        utils.prettify_transaction(transaction) for transaction in transaction_list
+        utils.prettify_transaction(transaction)
+        for transaction in transaction_list.all()
     ]
     return response

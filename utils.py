@@ -7,7 +7,7 @@ import schemas
 def prettify_transaction(transaction: models.Transaction) -> schemas.TransactionShow:
     return {
         "id": transaction.id,
-        "store_id": transaction.stocks[0].store_id if transaction.stocks else [],
+        "store_id": transaction.stocks[0].store_id if transaction.stocks else -1,
         "price": transaction.price,
         "items": transaction.stocks,
         "datetime": transaction.datetime,
