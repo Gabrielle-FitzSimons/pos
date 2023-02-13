@@ -99,6 +99,7 @@ class User(BaseModel):
 class UserCreate(User):
     password: str
 
+
 class UserInDB(User):
     hashed_password: str
 
@@ -106,6 +107,7 @@ class UserInDB(User):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    expiry: datetime.datetime
 
 
 class TokenData(BaseModel):

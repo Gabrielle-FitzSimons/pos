@@ -73,7 +73,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return {"access_token": encoded_jwt, "token_type": "bearer", "expiry": expire}
 
 
 def get_current_user(

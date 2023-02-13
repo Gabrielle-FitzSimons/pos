@@ -1,9 +1,11 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+import logging
 
 from typing import List, Optional
-from fastapi import FastAPI, status, HTTPException, Depends, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi_utils.timing import add_timing_middleware
 from database import Base, engine, get_session, SessionLocal
 from sqlalchemy.orm import Session
 
@@ -14,16 +16,21 @@ from security import (
     authenticate_user,
     check_superuser,
     create_access_token,
-    fake_users_db,
     get_current_active_user,
     get_password_hash,
 )
+import utils
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create the database
 Base.metadata.create_all(engine)
 
 # Initialize app
 app = FastAPI()
+add_timing_middleware(app, record=logger.info, prefix="app")
 
 # origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080", "*"]
 origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080"]
@@ -74,12 +81,11 @@ def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return access_token
 
 
 @app.post("/users", response_model=schemas.User)
@@ -350,6 +356,66 @@ def create_transaction(
     return read_transaction(transactiondb.id, session)
 
 
+@app.get("/transaction/custom", response_model=List[schemas.TransactionShow])
+def read_transaction_custom(
+    store_id: Optional[int] = None,
+    start_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    end_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    min_price: Optional[int] = None,
+    max_price: Optional[int] = None,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    This is going to be one BIG BIG DIRTY method for dealing with all custom ranges.
+    Can filter through a range of query parameters
+    store_id:
+    start_date:     INCLUSIVE!
+    end_date:       EXCLUSIVE!
+    min_price
+    max_price
+    """
+    transaction_list = session.query(models.Transaction)
+    if min_price:
+        transaction_list = transaction_list.filter(
+            models.Transaction.price >= min_price
+        )
+    if max_price:
+        transaction_list = transaction_list.filter(
+            models.Transaction.price <= max_price
+        )
+    if start_date:
+        transaction_list = transaction_list.filter(
+            models.Transaction.datetime >= start_date
+        )
+    if end_date:
+        transaction_list = transaction_list.filter(
+            models.Transaction.datetime <= end_date
+        )
+    if store_id:
+        transaction_list = transaction_list.join(
+            models.Stock, models.Transaction.stocks
+        ).filter(models.Stock.store_id == store_id)
+        # (
+        #     session.query(models.Transaction)
+        #     .filter(models.Transaction.stocks[0].store_id == store_id)
+        #     .first()
+        # )
+
+    logger.info("hello")
+
+    # transaction_list = session.query(models.Transaction).all()
+    response = [
+        utils.prettify_transaction(transaction)
+        for transaction in transaction_list.all()
+    ]
+    return response
+
+
 @app.get("/transaction/{id}", response_model=schemas.TransactionShow)
 def read_transaction(
     id: int,
@@ -366,13 +432,7 @@ def read_transaction(
             status_code=404, detail=f"transaction item with id {id} not found"
         )
 
-    response = {
-        "id": transaction.id,
-        "store_id": transaction.stocks[0].store_id if transaction.stocks else [],
-        "price": transaction.price,
-        "items": transaction.stocks,
-        "datetime": transaction.datetime,
-    }
+    response = utils.prettify_transaction(transaction)
     return response
 
 
@@ -443,13 +503,14 @@ def delete_transaction(
     return None
 
 
-@app.get("/transaction", response_model=List[schemas.Transaction])
+@app.get("/transaction", response_model=List[schemas.TransactionShow])
 def read_transaction_list(
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-
     # get all transactions
     transaction_list = session.query(models.Transaction).all()
-
-    return transaction_list
+    response = [
+        utils.prettify_transaction(transaction) for transaction in transaction_list
+    ]
+    return response
