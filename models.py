@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, ForeignKey, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -59,3 +59,13 @@ class Stock(Base):
     # NOTE SINGULAR, NOT PLURAL
     # Many to One
     transaction = relationship("Transaction", back_populates="stocks")
+
+
+class User(Base):
+    __tablename__ = "user"
+    id = Column(Integer, primary_key=True)
+    username = Column(String(256))
+    email = Column(String(256))
+    full_name = Column(String(256))
+    hashed_password = Column(String(256))
+    disabled = Column(Boolean)

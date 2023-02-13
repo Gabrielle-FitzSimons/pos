@@ -1,10 +1,20 @@
+from datetime import timedelta
+
 from typing import List, Optional
 from fastapi import FastAPI, status, HTTPException, Depends, Response
+from fastapi.security import OAuth2PasswordRequestForm
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
 
 import models
 import schemas
+from security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    authenticate_user,
+    create_access_token,
+    fake_users_db,
+    get_current_active_user,
+)
 
 # Create the database
 Base.metadata.create_all(engine)
@@ -26,8 +36,37 @@ def root():
     return "pos"
 
 
+@app.post("/token", response_model=schemas.Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# @app.post("/users/create")
+# def create_user()
+
+
+@app.get("/users/me/", response_model=schemas.User)
+def read_users_me(current_user: schemas.User = Depends(get_current_active_user)):
+    return current_user
+
+
 @app.post("/item", response_model=schemas.Item, status_code=status.HTTP_201_CREATED)
-def create_item(item: schemas.ItemCreate, session: Session = Depends(get_session)):
+def create_item(
+    item: schemas.ItemCreate,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # create an instance of the Item database model
     itemdb = models.Item(name=item.name)
@@ -42,7 +81,11 @@ def create_item(item: schemas.ItemCreate, session: Session = Depends(get_session
 
 
 @app.get("/item/{id}", response_model=schemas.Item)
-def read_item(id: int, session: Session = Depends(get_session)):
+def read_item(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get the item item with the given id
     item = session.query(models.Item).get(id)
@@ -55,7 +98,12 @@ def read_item(id: int, session: Session = Depends(get_session)):
 
 
 @app.put("/item/{id}", response_model=schemas.Item)
-def update_item(id: int, name: str, session: Session = Depends(get_session)):
+def update_item(
+    id: int,
+    name: str,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get the item item with the given id
     item = session.query(models.Item).get(id)
@@ -73,7 +121,11 @@ def update_item(id: int, name: str, session: Session = Depends(get_session)):
 
 
 @app.delete("/item/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(id: int, session: Session = Depends(get_session)):
+def delete_item(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
     """
     Should this method exist???
     """
@@ -92,7 +144,10 @@ def delete_item(id: int, session: Session = Depends(get_session)):
 
 
 @app.get("/item", response_model=List[schemas.Item])
-def read_item_list(session: Session = Depends(get_session)):
+def read_item_list(
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get all item items
     item_list = session.query(models.Item).all()
@@ -101,7 +156,11 @@ def read_item_list(session: Session = Depends(get_session)):
 
 
 @app.post("/store", response_model=schemas.Store, status_code=status.HTTP_201_CREATED)
-def create_store(store: schemas.StoreCreate, session: Session = Depends(get_session)):
+def create_store(
+    store: schemas.StoreCreate,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # create an instance of the Store database model
     storedb = models.Store(name=store.name)
@@ -116,7 +175,11 @@ def create_store(store: schemas.StoreCreate, session: Session = Depends(get_sess
 
 
 @app.get("/store/{id}", response_model=schemas.Store)
-def read_store(id: int, session: Session = Depends(get_session)):
+def read_store(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get the store with the given id
     store = session.query(models.Store).get(id)
@@ -131,7 +194,12 @@ def read_store(id: int, session: Session = Depends(get_session)):
 
 
 @app.put("/store/{id}", response_model=schemas.Store)
-def update_store(id: int, name: str, session: Session = Depends(get_session)):
+def update_store(
+    id: int,
+    name: str,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get the store with the given id
     store = session.query(models.Store).get(id)
@@ -149,7 +217,11 @@ def update_store(id: int, name: str, session: Session = Depends(get_session)):
 
 
 @app.delete("/store/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_store(id: int, session: Session = Depends(get_session)):
+def delete_store(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
     """
     Should this method exist???
     """
@@ -168,7 +240,10 @@ def delete_store(id: int, session: Session = Depends(get_session)):
 
 
 @app.get("/store", response_model=List[schemas.Store])
-def read_store_list(session: Session = Depends(get_session)):
+def read_store_list(
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get all store stores
     store_list = session.query(models.Store).all()
@@ -182,7 +257,9 @@ def read_store_list(session: Session = Depends(get_session)):
     status_code=status.HTTP_201_CREATED,
 )
 def create_transaction(
-    transaction: schemas.TransactionCreate, session: Session = Depends(get_session)
+    transaction: schemas.TransactionCreate,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
 ):
     # create an instance of the Transaction database model
     transactiondb = models.Transaction(
@@ -208,7 +285,11 @@ def create_transaction(
 
 
 @app.get("/transaction/{id}", response_model=schemas.TransactionShow)
-def read_transaction(id: int, session: Session = Depends(get_session)):
+def read_transaction(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get the transaction with the given id
     transaction = session.query(models.Transaction).get(id)
@@ -234,6 +315,7 @@ def update_transaction(
     id: int,
     transaction: schemas.TransactionUpdate,
     session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
 ):
 
     # get the transaction with the given id
@@ -269,7 +351,11 @@ def update_transaction(
 @app.delete(
     "/transaction/{id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
 )
-def delete_transaction(id: int, session: Session = Depends(get_session)):
+def delete_transaction(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
     """
     Should this method exist??? NO!!!!
     """
@@ -292,7 +378,10 @@ def delete_transaction(id: int, session: Session = Depends(get_session)):
 
 
 @app.get("/transaction", response_model=List[schemas.Transaction])
-def read_transaction_list(session: Session = Depends(get_session)):
+def read_transaction_list(
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
 
     # get all transactions
     transaction_list = session.query(models.Transaction).all()
