@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, date
+from itertools import groupby
 import logging
 
 from typing import List, Optional
@@ -627,6 +628,8 @@ def read_total_custom(
     end_date: Optional[str] = Query(
         default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     ),
+    week: Optional[bool] = False,
+    ascending: Optional[bool] = True,
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
@@ -639,6 +642,17 @@ def read_total_custom(
     min_price
     max_price
     """
+
+    def week_grouper(item):
+        item_date = item.date.date()
+        week = item_date.isocalendar().week
+        return week
+
+    def month_grouper(item):
+        item_date = item.date.date()
+        month = item_date.isocalendar().month
+        return month
+
     total_list = session.query(models.Total)
     if start_date:
         total_list = total_list.filter(models.Total.date >= start_date)
@@ -646,4 +660,41 @@ def read_total_custom(
         total_list = total_list.filter(models.Total.date <= end_date)
     if store_id:
         total_list = total_list.filter(models.Total.store_id == store_id)
-    return total_list.all()
+
+    result = total_list.order_by(models.Total.date).all()
+
+    if week:
+        # Groups by week.
+        # If store_id not given, collates all stores result.
+        final_result = []
+        for (week, items) in groupby(result, week_grouper):
+            total = 0
+            card_total = 0
+            cash_total = 0
+            transaction_total = 0
+            starting_date = None
+            tran_id = None
+            for item in items:
+                tran_id = tran_id or item.id
+                starting_date = starting_date or item.date
+                card_total += item.card
+                cash_total += item.cash
+                transaction_total += item.transaction_count
+            total += cash_total + card_total
+            final_result.append(
+                {
+                    "id": tran_id,
+                    "store_id": store_id or -1,
+                    "date": starting_date,
+                    "total": total,
+                    "card": card_total,
+                    "cash": cash_total,
+                    "transaction_count": transaction_total,
+                }
+            )
+        result = final_result
+
+    if not ascending:
+        result.reverse()
+
+    return result
