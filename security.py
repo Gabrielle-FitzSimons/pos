@@ -1,18 +1,21 @@
 from datetime import datetime, timedelta
 from typing import Union
 import os
+import logging
 
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
+from database import get_session
+import models
 import schemas
 
 
 load_dotenv()
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -22,21 +25,27 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
 
 
-fake_users_db = {
-    "josh": {
-        "username": "josh",
-        "full_name": "Joshua Wharton",
-        "email": "joshua@vapexstores.co.uk",
-        "hashed_password": "$2b$12$Oe8WaP1s4wHuoZq/EkkUHO.mvlu1dS/naFCEo0VtGuTeAvK6rUMMS",
-        "disabled": False,
-    }
-}
+# fake_users_db = {
+#     "josh": {
+#         "username": "josh",
+#         "full_name": "Joshua Wharton",
+#         "email": "joshua@vapexstores.co.uk",
+#         "hashed_password": "$2b$12$Oe8WaP1s4wHuoZq/EkkUHO.mvlu1dS/naFCEo0VtGuTeAvK6rUMMS",
+#         "disabled": False,
+#     }
+# }
 
 
-def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return schemas.UserInDB(**user_dict)
+def get_user(session, username: str):
+    user = session.query(models.User).filter(models.User.username == username).first()
+
+    if user:
+        return schemas.User(
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            disabled=user.disabled,
+        )
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -67,7 +76,10 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(
+    token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+):
+    start = datetime.now()
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -81,9 +93,11 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = schemas.TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user(session, username=token_data.username)
     if user is None:
         raise credentials_exception
+    end = datetime.now()
+    # print(end - start)
     return user
 
 
@@ -101,7 +115,7 @@ def get_current_active_user(
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
-    return True
+    # return True
 
 
 def check_superuser(user: schemas.User):

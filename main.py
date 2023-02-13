@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import FastAPI, status, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from database import Base, engine, SessionLocal
+from database import Base, engine, get_session, SessionLocal
 from sqlalchemy.orm import Session
 
 import models
