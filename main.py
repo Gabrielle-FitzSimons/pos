@@ -724,6 +724,9 @@ def read_total_custom(
         store_id = item.store_id
         return store_id
 
+    def day_grouper(item):
+        return str(item.date.date())
+
     def week_grouper(item):
         item_date = item.date.date()
         week = item_date.isocalendar().week
@@ -739,10 +742,40 @@ def read_total_custom(
         total_list = total_list.filter(models.Total.date >= start_date)
     if end_date:
         total_list = total_list.filter(models.Total.date <= end_date)
-    if store_id:
+    if store_id and store_id != -1:
         total_list = total_list.filter(models.Total.store_id == store_id)
 
     result = total_list.order_by(models.Total.date).all()
+
+    if store_id == -1:
+        # we want to sum all the stores together
+        final_result = []
+        for (_date, sub_items) in groupby(result, day_grouper):
+            total = 0
+            card_total = 0
+            cash_total = 0
+            transaction_total = 0
+            starting_date = None
+            tran_id = None
+            for item in sub_items:
+                tran_id = tran_id or item.id
+                starting_date = starting_date or item.date
+                card_total += item.card
+                cash_total += item.cash
+                transaction_total += item.transaction_count
+            total += cash_total + card_total
+            final_result.append(
+                {
+                    "id": tran_id,
+                    "store_id": -1,
+                    "date": starting_date,
+                    "total": total,
+                    "card": card_total,
+                    "cash": cash_total,
+                    "transaction_count": transaction_total,
+                }
+            )
+        result = final_result
 
     if week:
         # Groups by week.
