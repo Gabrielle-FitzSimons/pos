@@ -33,7 +33,13 @@ app = FastAPI()
 add_timing_middleware(app, record=logger.info, prefix="app")
 
 # origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080", "*"]
-origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080"]
+origins = [
+    "http://localhost",
+    "http://localhost:443",
+    "http://localhost:8000",
+    "http://pos.vapexstores.co.uk",
+    "https://pos.vapexstores.co.uk",
+]
 
 app.add_middleware(
     CORSMiddleware,
