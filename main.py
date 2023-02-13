@@ -1,8 +1,5 @@
-import datetime
-from statistics import quantiles
-
-from typing import List
-from fastapi import FastAPI, status, HTTPException, Depends
+from typing import List, Optional
+from fastapi import FastAPI, status, HTTPException, Depends, Response
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
 
@@ -181,7 +178,7 @@ def read_store_list(session: Session = Depends(get_session)):
 
 @app.post(
     "/transaction",
-    response_model=schemas.Transaction,
+    response_model=schemas.TransactionShow,
     status_code=status.HTTP_201_CREATED,
 )
 def create_transaction(
@@ -189,22 +186,28 @@ def create_transaction(
 ):
     # create an instance of the Transaction database model
     transactiondb = models.Transaction(
-        item_id=transaction.item_id,
-        store_id=transaction.store_id,
         price=transaction.price,
-        quantity=transaction.quantity,
     )
+
+    for item in transaction.items:
+        # Update stock amount
+        stockdb = models.Stock(
+            item_id=item.item_id,
+            store_id=transaction.store_id,
+            quantity=item.quantity,
+            transaction=transactiondb,
+            transaction_id=transactiondb.id,
+        )
+        session.add(stockdb)
 
     # add it to the session and commit it
     session.add(transactiondb)
     session.commit()
     session.refresh(transactiondb)
-
-    # return the transaction object
-    return transactiondb
+    return read_transaction(transactiondb.id, session)
 
 
-@app.get("/transaction/{id}", response_model=schemas.Transaction)
+@app.get("/transaction/{id}", response_model=schemas.TransactionShow)
 def read_transaction(id: int, session: Session = Depends(get_session)):
 
     # get the transaction with the given id
@@ -216,40 +219,56 @@ def read_transaction(id: int, session: Session = Depends(get_session)):
             status_code=404, detail=f"transaction item with id {id} not found"
         )
 
-    return transaction
+    response = {
+        "id": transaction.id,
+        "store_id": transaction.stocks[0].store_id if transaction.stocks else [],
+        "price": transaction.price,
+        "items": transaction.stocks,
+        "datetime": transaction.datetime,
+    }
+    return response
 
 
-@app.put("/transaction/{id}", response_model=schemas.Transaction)
+@app.put("/transaction/{id}", response_model=schemas.TransactionShow)
 def update_transaction(
     id: int,
-    item_id: int,
-    store_id: int,
-    price: int,
-    quantity: int,
+    transaction: schemas.TransactionUpdate,
     session: Session = Depends(get_session),
 ):
 
     # get the transaction with the given id
-    transaction = session.query(models.Transaction).get(id)
-
-    # update transaction with the given name (if a transaction with the given id was found)
-    if transaction:
-        transaction.item_id = item_id
-        transaction.store_id = store_id
-        transaction.price = price
-        transaction.quantity = quantity
-        session.commit()
+    transactiondb = session.query(models.Transaction).get(id)
 
     # check if transaction with given id exists. If not, raise exception and return 404 not found response
-    if not transaction:
+    if not transactiondb:
         raise HTTPException(
             status_code=404, detail=f"transaction with id {id} not found"
         )
 
-    return transaction
+    transactiondb.price = transaction.price or transactiondb.price
+
+    if transaction.items:
+        for item in transactiondb.stocks:
+            session.delete(item)
+        for item in transaction.items:
+            stockdb = models.Stock(
+                item_id=item.item_id,
+                store_id=transaction.store_id or transactiondb.stock[0].store_id,
+                quantity=item.quantity,
+                transaction=transactiondb,
+                transaction_id=transactiondb.id,
+            )
+            session.add(stockdb)
+
+    session.commit()
+    session.refresh(transactiondb)
+
+    return read_transaction(transactiondb.id, session)
 
 
-@app.delete("/transaction/{id}", status_code=status.HTTP_204_NO_CONTENT)
+@app.delete(
+    "/transaction/{id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+)
 def delete_transaction(id: int, session: Session = Depends(get_session)):
     """
     Should this method exist??? NO!!!!
@@ -260,6 +279,8 @@ def delete_transaction(id: int, session: Session = Depends(get_session)):
 
     # if transaction with given id exists, delete it from the database. Otherwise raise 404 error
     if transaction:
+        for item in transaction.stocks:
+            session.delete(item)
         session.delete(transaction)
         session.commit()
     else:
