@@ -78,15 +78,12 @@ class User(Base):
 
 class Total(Base):
     __tablename__ = "total"
-    id = Column(Integer, primary_key=True)
-    date = Column(DateTime(timezone=True), server_default=func.now())
-    card = Column(Integer)
-    cash = Column(Integer)
-    store_id = Column(Integer, ForeignKey("store.id"))
-    transaction_count = Column(Integer)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(DateTime(timezone=True))
+    card = Column(Integer, nullable=False)
+    cash = Column(Integer, nullable=False)
+    total = Column(Integer, nullable=False)
+    store_id = Column(Integer, ForeignKey("store.id"), nullable=False)
+    transaction_count = Column(Integer, nullable=False)
 
     store = relationship("Store", back_populates="totals")
-
-    @hybrid_property
-    def total(self):
-        return self.cash + self.card

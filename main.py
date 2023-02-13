@@ -1,9 +1,21 @@
-from datetime import datetime, timedelta, date
+import codecs
+import csv
+from datetime import datetime, timedelta
 from itertools import groupby
 import logging
+import math
 
 from typing import List, Optional
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Response,
+    status,
+    UploadFile,
+    File,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_utils.timing import add_timing_middleware
@@ -41,6 +53,7 @@ origins = [
     "http://localhost:8000",
     "http://pos.vapexstores.co.uk",
     "https://pos.vapexstores.co.uk",
+    "*",
 ]
 
 app.add_middleware(
@@ -93,8 +106,8 @@ def login_for_access_token(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    logger.info("ACCESS TOKEN:")
-    logger.info(access_token)
+    # logger.info("ACCESS TOKEN:")
+    # logger.info(access_token)
     return access_token
 
 
@@ -504,13 +517,62 @@ def read_transaction_custom(
     return response
 
 
+@app.post("/total/batch", status_code=status.HTTP_201_CREATED)
+def create_total(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Takes in a CSV of totals.
+    """
+    csvReader = csv.DictReader(codecs.iterdecode(file.file, "utf-8"))
+    for row in csvReader:
+        date = row["date"]
+        card = float(row["card"] or 0)
+        cash = float(row["cash"] or 0)
+        total = float(row.get("total") or 0)
+        store_id = int(row["store_id"])
+        transaction_count = int(row["transaction_count"]) or 0
+
+        date = datetime.strptime(date, "%d/%m/%y")
+        cash = int(math.ceil(cash * 100))
+        card = int(math.ceil(card * 100))
+        total = int(math.ceil(total * 100)) if total else cash + card
+        if total != cash + card:
+            raise HTTPException(
+                status_code=404,
+                detail=f"total does not equal cash and card for date {date}, store_id {store_id}, cash {cash}, card {card}, total {total}",
+            )
+
+        # create an instance of the Store database model
+        totaldb = models.Total(
+            date=date,
+            card=card,
+            cash=cash,
+            total=total,
+            store_id=store_id,
+            transaction_count=transaction_count,
+        )
+        # add it to the session and commit it
+        session.add(totaldb)
+
+    session.commit()
+    # session.refresh(totaldb)
+
+    # return the store object
+    return {"status": "done"}
+
+
 @app.post("/total", response_model=schemas.Total, status_code=status.HTTP_201_CREATED)
 def create_total(
     total: schemas.TotalCreate,
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
-
+    """
+    TODO: FIX THIS. ADD CSV SUPPORT. FIX THE SHITTY BROKEN SYSTEM I HAVE NOW. FUCK THIS SO MUCH.
+    """
     if total.total != total.cash + total.card:
         raise HTTPException(
             status_code=404, detail=f"total does not equal cash and card"
@@ -521,9 +583,11 @@ def create_total(
         date=total.date,
         card=total.card,
         cash=total.cash,
+        total=total.total,
         store_id=total.store_id,
         transaction_count=total.transaction_count,
     )
+    print("We've got here")
 
     # add it to the session and commit it
     session.add(totaldb)
