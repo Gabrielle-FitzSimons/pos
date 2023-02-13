@@ -1,7 +1,7 @@
 import datetime
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Union
 
 # Create Item Schema (Pydantic Model)
 class ItemCreate(BaseModel):
@@ -112,3 +112,32 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: str
+
+
+class TotalShow(BaseModel):
+    date: datetime.date
+    total: Union[float, str]
+    transactions: Union[int, str]
+
+
+class TotalCreate(BaseModel):
+    date: datetime.date
+    card: int
+    cash: int
+    total: int
+    store_id: int
+    transaction_count: int
+
+
+# Complete Sale Schema (Pydantic Model)
+class Total(BaseModel):
+    id: int
+    date: datetime.date
+    card: int
+    cash: int
+    total: int
+    store_id: int
+    transaction_count: int
+
+    class Config:
+        orm_mode = True

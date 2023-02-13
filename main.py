@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 
 from typing import List, Optional
@@ -92,7 +92,7 @@ def login_for_access_token(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    logger.info('ACCESS TOKEN:')
+    logger.info("ACCESS TOKEN:")
     logger.info(access_token)
     return access_token
 
@@ -501,3 +501,149 @@ def read_transaction_custom(
         for transaction in transaction_list.all()
     ]
     return response
+
+
+@app.post("/total", response_model=schemas.Total, status_code=status.HTTP_201_CREATED)
+def create_total(
+    total: schemas.TotalCreate,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+
+    if total.total != total.cash + total.card:
+        raise HTTPException(
+            status_code=404, detail=f"total does not equal cash and card"
+        )
+
+    # create an instance of the Store database model
+    totaldb = models.Total(
+        date=total.date,
+        card=total.card,
+        cash=total.cash,
+        store_id=total.store_id,
+        transaction_count=total.transaction_count,
+    )
+
+    # add it to the session and commit it
+    session.add(totaldb)
+    session.commit()
+    session.refresh(totaldb)
+
+    # return the store object
+    return totaldb
+
+
+@app.get("/total/{id}", response_model=schemas.Total)
+def read_total(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+
+    # get the store with the given id
+    total = session.query(models.Total).get(id)
+
+    # check if store with given id exists. If not, raise exception and return 404 not found response
+    if not total:
+        raise HTTPException(
+            status_code=404, detail=f"total item with id {id} not found"
+        )
+
+    return total
+
+
+@app.put("/total/{id}", response_model=schemas.Total)
+def update_total(
+    id: int,
+    cash: int = None,
+    card: int = None,
+    store_id: int = None,
+    transaction_count: int = None,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+
+    # get the store with the given id
+    total = session.query(models.Total).get(id)
+
+    # update store with the given name (if a store with the given id was found)
+    total.cash = cash if cash else total.cash
+    total.card = card if card else total.card
+    total.store_id = total.store_id if store_id else total.store_id
+    total.transaction_count = (
+        total.transaction_count if transaction_count else total.transaction_count
+    )
+
+    session.commit()
+
+    # check if total with given id exists. If not, raise exception and return 404 not found response
+    if not total:
+        raise HTTPException(status_code=404, detail=f"total with id {id} not found")
+
+    return total
+
+
+@app.delete("/total/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_total(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Should this method exist???
+    """
+
+    # get the store with the given id
+    total = session.query(models.Total).get(id)
+
+    # if total with given id exists, delete it from the database. Otherwise raise 404 error
+    if total:
+        session.delete(total)
+        session.commit()
+    else:
+        raise HTTPException(status_code=404, detail=f"total with id {id} not found")
+
+    return None
+
+
+# @app.get("/total", response_model=List[schemas.Total])
+# def read_total_list(
+#     session: Session = Depends(get_session),
+#     current_user: schemas.User = Depends(get_current_active_user),
+# ):
+
+#     # get all total stores
+#     total_list = session.query(models.Total).all()
+
+#     return total_list
+
+
+@app.get("/total", response_model=List[schemas.Total])
+def read_total_custom(
+    store_id: Optional[int] = None,
+    start_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    end_date: Optional[str] = Query(
+        default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    ),
+    session: Session = Depends(get_session),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    This is going to be one BIG BIG DIRTY method for dealing with all custom ranges.
+    Can filter through a range of query parameters
+    store_id:
+    start_date:     INCLUSIVE!
+    end_date:       EXCLUSIVE!
+    min_price
+    max_price
+    """
+    total_list = session.query(models.Total)
+    if start_date:
+        total_list = total_list.filter(models.Total.date >= start_date)
+    if end_date:
+        total_list = total_list.filter(models.Total.date <= end_date)
+    if store_id:
+        total_list = total_list.filter(models.Total.store_id == store_id)
+    return total_list.all()

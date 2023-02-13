@@ -1,4 +1,4 @@
-bind = "0.0.0.0:8080"
+bind = "0.0.0.0:8443"
 workers = 1
 worker_class = "uvicorn.workers.UvicornWorker"
 worker_connections = 1000

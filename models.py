@@ -3,6 +3,9 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey, f
 from sqlalchemy.orm import relationship
 from database import Base
 
+from sqlalchemy.ext.hybrid import hybrid_property
+
+
 # Define Item class inheriting from Base
 # This stores information on items itself
 class Item(Base):
@@ -22,6 +25,7 @@ class Store(Base):
     name = Column(String(256))
 
     stocks = relationship("Stock", back_populates="store")
+    totals = relationship("Total", back_populates="store")
 
 
 # Define Transaction class inheriting from Base
@@ -70,3 +74,19 @@ class User(Base):
     full_name = Column(String(256))
     hashed_password = Column(String(256))
     disabled = Column(Boolean)
+
+
+class Total(Base):
+    __tablename__ = "total"
+    id = Column(Integer, primary_key=True)
+    date = Column(DateTime(timezone=True), server_default=func.now())
+    card = Column(Integer)
+    cash = Column(Integer)
+    store_id = Column(Integer, ForeignKey("store.id"))
+    transaction_count = Column(Integer)
+
+    store = relationship("Store", back_populates="totals")
+
+    @hybrid_property
+    def total(self):
+        return self.cash + self.card
