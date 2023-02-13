@@ -1,0 +1,153 @@
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "ids": [
+                        1
+                      ],
+                      "name": "10mg"
+                    },
+                    {
+                      "ids": [
+                        2
+                      ],
+                      "name": "20mg"
+                    }
+                  ],
+                  "ids": [
+                    1,
+                    2
+                  ],
+                  "name": "blueberry"
+                },
+                {
+                  "children": [
+                    {
+                      "ids": [
+                        3
+                      ],
+                      "name": "10mg"
+                    },
+                    {
+                      "ids": [
+                        4
+                      ],
+                      "name": "20mg"
+                    }
+                  ],
+                  "ids": [
+                    3,
+                    4
+                  ],
+                  "name": "lemonade"
+                }
+              ],
+              "ids": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "name": "mr_salt"
+            },
+            {
+              "children": [
+                {
+                  "ids": [
+                    7
+                  ],
+                  "name": "3mg"
+                }
+              ],
+              "ids": [
+                7
+              ],
+              "name": "yeti_grape"
+            }
+          ],
+          "ids": [
+            1,
+            2,
+            3,
+            4,
+            7
+          ],
+          "name": "nic_salt"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "ids": [
+                    5
+                  ],
+                  "name": "3mg"
+                },
+                {
+                  "ids": [
+                    6
+                  ],
+                  "name": "6mg"
+                }
+              ],
+              "ids": [
+                5,
+                6
+              ],
+              "name": "menthol"
+            }
+          ],
+          "ids": [
+            5,
+            6
+          ],
+          "name": "asteam"
+        }
+      ],
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "name": "juice"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "ids": [
+                8
+              ],
+              "name": "0.7"
+            }
+          ],
+          "ids": [
+            8
+          ],
+          "name": "nautilus"
+        }
+      ],
+      "ids": [
+        8
+      ],
+      "name": "coil"
+    }
+  ],
+  "ids": [
+    -1
+  ],
+  "name": "stock"
+}

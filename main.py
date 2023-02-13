@@ -633,10 +633,10 @@ def read_total(
 @app.put("/total/{id}", response_model=schemas.Total)
 def update_total(
     id: int,
-    cash: int = None,
-    card: int = None,
+    cash: float = None,
+    card: float = None,
     store_id: int = None,
-    transaction_count: int = None,
+    transaction_count: float = None,
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
@@ -645,8 +645,11 @@ def update_total(
     total = session.query(models.Total).get(id)
 
     # update store with the given name (if a store with the given id was found)
-    total.cash = cash if cash else total.cash
-    total.card = card if card else total.card
+    total.cash = int(math.ceil(cash * 100)) if cash else total.cash
+    total.card = int(math.ceil(card * 100)) if card else total.card
+    total.total = total.cash + total.card
+    print(total.cash)
+    print(cash)
     total.store_id = total.store_id if store_id else total.store_id
     total.transaction_count = (
         total.transaction_count if transaction_count else total.transaction_count
