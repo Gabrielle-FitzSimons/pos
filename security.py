@@ -18,7 +18,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+# Currently set at 12 hours. Covers working day.
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
 
 
 fake_users_db = {
@@ -86,13 +87,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-def get_current_active_user():
-    # def get_current_active_user(
-    #     current_user: schemas.User = Depends(get_current_user),
-    # ):
-    # if current_user.disabled:
-    #     raise HTTPException(status_code=400, detail="Inactive user")
-    # return current_user
+# def get_current_active_user():
+#     # def get_current_active_user(
+#     #     current_user: schemas.User = Depends(get_current_user),
+#     # ):
+#     # if current_user.disabled:
+#     #     raise HTTPException(status_code=400, detail="Inactive user")
+#     # return current_user
+#     return True
+def get_current_active_user(
+    current_user: schemas.User = Depends(get_current_user),
+):
+    if current_user.disabled:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
     return True
 
 
