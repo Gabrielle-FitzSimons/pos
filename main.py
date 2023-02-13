@@ -35,7 +35,8 @@ add_timing_middleware(app, record=logger.info, prefix="app")
 # origins = ["http://localhost", "http://localhost:3000", "http://localhost:8080", "*"]
 origins = [
     "http://localhost",
-    "http://localhost:443",
+    "https://localhost",
+    "http://localhost:3000",
     "http://localhost:8000",
     "http://pos.vapexstores.co.uk",
     "https://pos.vapexstores.co.uk",
@@ -91,6 +92,8 @@ def login_for_access_token(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    logger.info('ACCESS TOKEN:')
+    logger.info(access_token)
     return access_token
 
 

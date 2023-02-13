@@ -14,6 +14,9 @@ from database import get_session
 import models
 import schemas
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 load_dotenv()
 
