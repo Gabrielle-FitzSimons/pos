@@ -122,9 +122,9 @@ class TotalShow(BaseModel):
 
 class TotalCreate(BaseModel):
     date: datetime.date
-    card: int
-    cash: int
-    total: int
+    card: float
+    cash: float
+    total: float
     store_id: int
     transaction_count: int
 

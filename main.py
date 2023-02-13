@@ -1,6 +1,7 @@
 import codecs
 import csv
 from datetime import datetime, timedelta
+from functools import partial
 from itertools import groupby
 import logging
 import math
@@ -573,21 +574,33 @@ def create_total(
     """
     TODO: FIX THIS. ADD CSV SUPPORT. FIX THE SHITTY BROKEN SYSTEM I HAVE NOW. FUCK THIS SO MUCH.
     """
-    if total.total != total.cash + total.card:
+    cash = int(math.ceil(total.cash * 100))
+    card = int(math.ceil(total.card * 100))
+    total_input = int(math.ceil(total.total * 100))
+    if total_input != cash + card:
         raise HTTPException(
             status_code=404, detail=f"total does not equal cash and card"
         )
 
+    # Check if total already exists
+    total_day = read_total_custom(
+        total.store_id,
+        start_date=str(total.date),
+        end_date=str(total.date + timedelta(days=1)),
+        session=session,
+    )
+    if len(total_day) > 0:
+        raise HTTPException(status_code=404, detail=f"Total already exists!")
+
     # create an instance of the Store database model
     totaldb = models.Total(
         date=total.date,
-        card=total.card,
-        cash=total.cash,
-        total=total.total,
+        card=card,
+        cash=cash,
+        total=total_input,
         store_id=total.store_id,
         transaction_count=total.transaction_count,
     )
-    print("We've got here")
 
     # add it to the session and commit it
     session.add(totaldb)
@@ -693,7 +706,7 @@ def read_total_custom(
         default=None, regex="^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     ),
     week: Optional[bool] = False,
-    ascending: Optional[bool] = True,
+    ascending: Optional[bool] = False,
     session: Session = Depends(get_session),
     current_user: schemas.User = Depends(get_current_active_user),
 ):
@@ -706,6 +719,10 @@ def read_total_custom(
     min_price
     max_price
     """
+
+    def store_grouper(item):
+        store_id = item.store_id
+        return store_id
 
     def week_grouper(item):
         item_date = item.date.date()
@@ -732,30 +749,34 @@ def read_total_custom(
         # If store_id not given, collates all stores result.
         final_result = []
         for (week, items) in groupby(result, week_grouper):
-            total = 0
-            card_total = 0
-            cash_total = 0
-            transaction_total = 0
-            starting_date = None
-            tran_id = None
-            for item in items:
-                tran_id = tran_id or item.id
-                starting_date = starting_date or item.date
-                card_total += item.card
-                cash_total += item.cash
-                transaction_total += item.transaction_count
-            total += cash_total + card_total
-            final_result.append(
-                {
-                    "id": tran_id,
-                    "store_id": store_id or -1,
-                    "date": starting_date,
-                    "total": total,
-                    "card": card_total,
-                    "cash": cash_total,
-                    "transaction_count": transaction_total,
-                }
-            )
+            sorted_items = sorted(items, key=lambda item: item.store_id)
+            for (_store_id, sub_items) in groupby(sorted_items, store_grouper):
+                total = 0
+                card_total = 0
+                cash_total = 0
+                transaction_total = 0
+                starting_date = None
+                tran_id = None
+                store_id = None
+                for item in sub_items:
+                    tran_id = tran_id or item.id
+                    starting_date = starting_date or item.date
+                    card_total += item.card
+                    cash_total += item.cash
+                    transaction_total += item.transaction_count
+                    store_id = store_id or item.store_id
+                total += cash_total + card_total
+                final_result.append(
+                    {
+                        "id": tran_id,
+                        "store_id": store_id or -1,
+                        "date": starting_date,
+                        "total": total,
+                        "card": card_total,
+                        "cash": cash_total,
+                        "transaction_count": transaction_total,
+                    }
+                )
         result = final_result
 
     if not ascending:
